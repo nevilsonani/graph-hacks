@@ -45,6 +45,21 @@ TOOLS = [
         "input_schema": {"id": "account id"},
     },
     {
+        "name": "fan_in",
+        "description": "Accounts by inbound SENT volume. Complements PageRank with raw money flow.",
+        "input_schema": {"limit": "integer, default 8"},
+    },
+    {
+        "name": "cash_out",
+        "description": "PAID edges into merchants — where the ring turns graph money into goods.",
+        "input_schema": {},
+    },
+    {
+        "name": "simulate_freeze",
+        "description": "Counterfactual: who sits downstream of this account if we freeze it. Read-only.",
+        "input_schema": {"id": "account id"},
+    },
+    {
         "name": "search_accounts",
         "description": "Find accounts by id fragment or name.",
         "input_schema": {"q": "search string"},
@@ -170,9 +185,30 @@ def neighborhood(id: str, **_) -> dict:
 
 
 def money_path(src: str, dst: str, **_) -> dict:
-    hops = falkor.rows(queries.MONEY_PATH, {"src": src, "dst": dst})
+    try:
+        hops = falkor.rows(queries.MONEY_PATH, {"src": src, "dst": dst})
+    except Exception:  # noqa: BLE001
+        hops = falkor.rows(
+            """
+            MATCH (src:Account {id: $src}), (dst:Account {id: $dst})
+            MATCH p = (src)-[:SENT*1..6]->(dst)
+            RETURN [n IN nodes(p) | n.id] AS hops,
+                   [r IN relationships(p) | r.amount] AS amounts,
+                   [r IN relationships(p) | r.id] AS txns,
+                   length(p) AS hops_n
+            ORDER BY hops_n ASC
+            LIMIT 5
+            """,
+            {"src": src, "dst": dst},
+        )
     paths = [
-        {"hops": r[0], "amounts": r[1], "txns": r[2], "length": r[3]}
+        {
+            "hops": r[0],
+            "amounts": r[1],
+            "txns": r[2],
+            "length": r[3],
+            "volume": r[4] if len(r) > 4 else None,
+        }
         for r in hops
     ]
     sp = []
@@ -230,6 +266,63 @@ def blast_radius(id: str, **_) -> dict:
 def search_accounts(q: str, **_) -> dict:
     rows = falkor.rows(queries.SEARCH, {"q": q})
     return {"matches": _table(rows, ["id", "name", "kind", "risk", "frozen"])}
+
+
+def fan_in(limit: int = 8, **_) -> dict:
+    rows = falkor.rows(queries.FAN_IN, {"limit": int(limit)})
+    return {
+        "algorithm": "inbound SENT volume",
+        "sinks": _table(rows, ["id", "name", "kind", "inbound", "volume", "frozen"]),
+    }
+
+
+def cash_out(**_) -> dict:
+    rows = falkor.rows(queries.CASH_OUT)
+    return {
+        "exits": [
+            {
+                "account": r[0],
+                "name": r[1],
+                "kind": r[2],
+                "txn": r[3],
+                "amount": r[4],
+                "ts": r[5],
+                "merchant_id": r[6],
+                "merchant": r[7],
+                "merchant_risk": r[8],
+            }
+            for r in rows
+        ]
+    }
+
+
+def simulate_freeze(id: str, **_) -> dict:
+    try:
+        rows = falkor.rows(queries.SIMULATE_FREEZE, {"id": id})
+    except Exception:  # noqa: BLE001
+        rows = falkor.rows(
+            """
+            MATCH (seed:Account {id: $id})
+            OPTIONAL MATCH (seed)-[:SENT*1..4]->(n:Account)
+            RETURN seed.id, seed.name, seed.kind, seed.frozen, collect(DISTINCT n.id)
+            """,
+            {"id": id},
+        )
+    if not rows:
+        return {"found": False, "id": id}
+    r = rows[0]
+    raw = r[4] or []
+    if raw and isinstance(raw[0], dict):
+        downstream = [x for x in raw if x and x.get("id")]
+    else:
+        downstream = [{"id": x} for x in raw if x]
+    return {
+        "found": True,
+        "seed": {"id": r[0], "name": r[1], "kind": r[2], "already_frozen": r[3]},
+        "would_cut": downstream,
+        "cut_count": len(downstream),
+        "note": "Read-only counterfactual. No SET. freeze_account is the write.",
+    }
 
 
 def freeze_account(id: str, reason: str = "", inv_id: str = "", **_) -> dict:
@@ -319,9 +412,100 @@ def subgraph(ids: list[str]) -> dict:
                 "amount": r[2],
                 "id": r[3],
                 "channel": r[4],
+                "kind": "SENT",
             }
         )
-    return {"nodes": nodes, "edges": edges}
+    try:
+        for r in falkor.rows(queries.SUBGRAPH_DEVICES, {"ids": ids}):
+            nodes.append(
+                {
+                    "id": r[0],
+                    "name": r[1],
+                    "kind": "device",
+                    "flagged": r[2],
+                    "frozen": False,
+                    "type": "device",
+                }
+            )
+        for r in falkor.rows(queries.SUBGRAPH_DEVICE_EDGES, {"ids": ids}):
+            edges.append({"source": r[0], "target": r[1], "kind": "USED_DEVICE"})
+        for r in falkor.rows(queries.SUBGRAPH_PAY, {"ids": ids}):
+            nodes.append(
+                {
+                    "id": r[1],
+                    "name": r[2],
+                    "kind": "merchant",
+                    "risk": r[5],
+                    "frozen": False,
+                    "type": "merchant",
+                }
+            )
+            edges.append(
+                {
+                    "source": r[0],
+                    "target": r[1],
+                    "amount": r[3],
+                    "id": r[4],
+                    "kind": "PAID",
+                }
+            )
+    except Exception:  # noqa: BLE001
+        pass
+    # de-dupe nodes
+    uniq = {}
+    for n in nodes:
+        uniq[n["id"]] = n
+    return {"nodes": list(uniq.values()), "edges": edges}
+
+
+def crime_scene() -> dict:
+    nodes = []
+    for r in falkor.rows(queries.CRIME_ACCOUNTS):
+        nodes.append(
+            {
+                "id": r[0],
+                "name": r[1],
+                "kind": r[2],
+                "risk": r[3],
+                "frozen": r[4],
+                "flagged": r[5],
+                "type": "account",
+            }
+        )
+    edges = []
+    for r in falkor.rows(queries.CRIME_EDGES):
+        edges.append(
+            {
+                "source": r[0],
+                "target": r[1],
+                "amount": r[2],
+                "id": r[3],
+                "channel": r[4],
+                "alert": r[5],
+                "kind": "SENT",
+            }
+        )
+    try:
+        for r in falkor.rows(queries.CRIME_DEVICES):
+            nodes.append(
+                {
+                    "id": r[0],
+                    "name": r[1],
+                    "kind": "device",
+                    "flagged": r[2],
+                    "frozen": False,
+                    "type": "device",
+                    "accounts": r[3],
+                }
+            )
+            for aid in r[3] or []:
+                edges.append({"source": aid, "target": r[0], "kind": "USED_DEVICE"})
+    except Exception:  # noqa: BLE001
+        pass
+    uniq = {}
+    for n in nodes:
+        uniq[n["id"]] = n
+    return {"nodes": list(uniq.values()), "edges": edges}
 
 
 REGISTRY = {
@@ -333,6 +517,9 @@ REGISTRY = {
     "bridge_nodes": bridge_nodes,
     "detect_rings": detect_rings,
     "blast_radius": blast_radius,
+    "fan_in": fan_in,
+    "cash_out": cash_out,
+    "simulate_freeze": simulate_freeze,
     "search_accounts": search_accounts,
     "freeze_account": freeze_account,
     "flag_device": flag_device,
@@ -346,6 +533,15 @@ def call(name: str, arguments: dict, inv_id: str = "") -> dict:
     if not fn:
         return {"error": f"unknown tool {name}"}
     args = dict(arguments or {})
+    for key in ("limit", "min_size"):
+        if key in args and args[key] not in (None, ""):
+            try:
+                args[key] = int(args[key])
+            except (TypeError, ValueError):
+                args.pop(key, None)
     if name in {"freeze_account", "flag_device", "open_case", "mark_ring"}:
         args["inv_id"] = inv_id
-    return fn(**args)
+    try:
+        return fn(**args)
+    except TypeError as exc:
+        return {"error": str(exc), "tool": name}

@@ -57,6 +57,9 @@ PageRank on `SENT` finds collectors. WCC on `SENT` finds the money pool. Shared 
 | `detect_rings` | `CALL algo.WCC(...)` + shared device | Mule crews |
 | `money_path` | `(src)-[:SENT*1..6]->(dst)` and `algo.SPpaths` | Multi-hop follow-the-money |
 | `blast_radius` | `CALL algo.BFS(seed, 3, 'SENT')` | What a freeze actually stops |
+| `fan_in` | inbound `SENT` volume | Raw money concentration vs PageRank |
+| `cash_out` | `(Account)-[:PAID]->(Merchant)` | Where the ring leaves the ledger |
+| `simulate_freeze` | `SENT*1..4` read-only | Counterfactual before `SET frozen` |
 
 Canonical Cypher lives in `backend/app/queries.py` and is copied onto every dossier step.
 
@@ -65,3 +68,5 @@ Canonical Cypher lives in `backend/app/queries.py` and is copied onto every doss
 `V-03 -TXN-ALERT-1 $9400-> M-01 -> M-04 -> C-ALPHA -> C-BETA -PAID-> MRCH-NIGHT`
 
 Device `D-GHOST` is shared by `M-01` through `M-07`.
+
+`SENT.weight` is the dollar amount so `algo.SPpaths` can prefer the heavy money trail, not an unweighted hop count.

@@ -155,7 +155,7 @@ def seed(force: bool = False) -> dict:
             MATCH (s:Account {id:$src}), (d:Account {id:$dst})
             CREATE (s)-[:SENT {
               id: $id, amount: $amount, ts: $ts, channel: $channel,
-              alert: $alert, note: $note, weight: 1.0
+              alert: $alert, note: $note, weight: $amount
             }]->(d)
             """,
             {

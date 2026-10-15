@@ -1,18 +1,29 @@
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import agent, falkor, seed, tools
 from .config import settings
 
-WEB = Path(__file__).resolve().parents[2] / "web"
-if not WEB.exists():
-    WEB = Path("/web")
+WEB = next(
+    (
+        p
+        for p in (
+            Path(__file__).resolve().parents[2] / "web",
+            Path(__file__).resolve().parents[1] / "web",
+            Path("/app/web"),
+            Path("/web"),
+        )
+        if p.exists()
+    ),
+    Path("/app/web"),
+)
 
 
 @asynccontextmanager
@@ -83,6 +94,37 @@ async def investigate(body: InvestigateBody):
     if not body.query.strip():
         raise HTTPException(400, "query required")
     return await agent.investigate(body.query.strip(), take_actions=body.take_actions)
+
+
+@app.post("/api/investigate/stream")
+async def investigate_stream(body: InvestigateBody):
+    if not falkor.ping():
+        raise HTTPException(503, "FalkorDB is down. The agent has no context layer.")
+    if not body.query.strip():
+        raise HTTPException(400, "query required")
+
+    async def events():
+        async for event in agent.investigate_events(body.query.strip(), take_actions=body.take_actions):
+            yield f"data: {json.dumps(event, default=str)}\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream")
+
+
+@app.get("/api/investigations/{inv_id}")
+def replay(inv_id: str):
+    if not falkor.ping():
+        raise HTTPException(503, "FalkorDB is down.")
+    data = agent.replay(inv_id)
+    if not data:
+        raise HTTPException(404, "investigation not in graph")
+    return data
+
+
+@app.get("/api/scene")
+def scene():
+    if not falkor.ping():
+        raise HTTPException(503, "FalkorDB is down.")
+    return tools.crime_scene()
 
 
 @app.get("/mcp/tools")

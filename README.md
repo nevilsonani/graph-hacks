@@ -12,8 +12,8 @@ Unplug FalkorDB and the product returns `503`. That is the point. [Hackathon rul
 
 1. Open http://localhost:8080  
 2. Click **Investigate TXN-ALERT-1 — $9,400 night wire**  
-3. Watch the dossier: `lookup_txn` → `neighborhood` → `money_path` → `pageRank` → `WCC` → `BFS` → `freeze` / `flag_device` / `open_case`  
-4. Nodes turn lime when frozen. That freeze is a property on `(:Account)` in FalkorDB.  
+3. Watch the dossier stream live: `lookup_txn` → `neighborhood` → `pageRank` → `money_path` → `WCC` → `cash_out` → `simulate_freeze` → `BFS` → `SET frozen`  
+4. Nodes turn lime when frozen. That freeze is a property on `(:Account)` in FalkorDB. Click a node to investigate it. Prior walks reload from `(:Investigation)` in the graph.  
 5. Optional: open FalkorDB Browser at http://localhost:3000, graph name `tracewire`, and run:
 
 ```cypher

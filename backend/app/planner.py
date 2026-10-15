@@ -75,7 +75,12 @@ def heuristic_plan(query: str) -> list[dict]:
 
     if "blast" in q or "freeze" in q or "what breaks" in q:
         seed = ids["accounts"][0] if ids["accounts"] else "C-ALPHA"
-        steps.append({"tool": "blast_radius", "args": {"id": seed}, "reason": "Actions need downstream blast radius first."})
+        steps.append({"tool": "simulate_freeze", "args": {"id": seed}, "reason": "Counterfactual freeze before writing SET."})
+        steps.append({"tool": "blast_radius", "args": {"id": seed}, "reason": "BFS downstream of the freeze candidate."})
+    if "cash" in q or "merchant" in q or "kiosk" in q:
+        steps.append({"tool": "cash_out", "args": {}, "reason": "PAID edges are the cash-out, not SENT."})
+    if "volume" in q or "fan" in q or "inbound" in q:
+        steps.append({"tool": "fan_in", "args": {"limit": 8}, "reason": "Inbound SENT volume vs PageRank."})
 
     if "pagerank" in q and not any(s["tool"] == "rank_hubs" for s in steps):
         steps.append({"tool": "rank_hubs", "args": {"limit": 8}, "reason": "Explicit PageRank request."})
@@ -156,12 +161,14 @@ def decide_actions(state: dict) -> list[dict]:
                 }
             )
 
-    collector_ids = {h.get("id") for h in hubs[:3]}
-    if "C-ALPHA" in related or ("C-ALPHA" in collector_ids and related and hops):
+    sink = next((h.get("id") for h in hubs[:5] if h.get("kind") == "collector" and h.get("id")), None)
+    if not sink and hubs:
+        sink = hubs[0].get("id")
+    if sink and (sink in related or hops):
         actions.append(
             {
                 "tool": "freeze_account",
-                "args": {"id": "C-ALPHA", "reason": "PageRank collector sits on this investigation's money path"},
+                "args": {"id": sink, "reason": f"PageRank collector {sink} sits on this investigation's money path"},
                 "reason": "Hub score plus path evidence. Freeze the sink, not only the first mule.",
             }
         )

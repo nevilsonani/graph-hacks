@@ -43,11 +43,14 @@ RETURN a.id,
 MONEY_PATH = """
 MATCH (src:Account {id: $src}), (dst:Account {id: $dst})
 MATCH p = (src)-[:SENT*1..6]->(dst)
-RETURN [n IN nodes(p) | n.id] AS hops,
-       [r IN relationships(p) | r.amount] AS amounts,
-       [r IN relationships(p) | r.id] AS txns,
-       length(p) AS hops_n
-ORDER BY hops_n ASC
+WITH p,
+     [n IN nodes(p) | n.id] AS hops,
+     [r IN relationships(p) | r.amount] AS amounts,
+     [r IN relationships(p) | r.id] AS txns,
+     length(p) AS hops_n,
+     reduce(total = 0.0, r IN relationships(p) | total + r.amount) AS volume
+RETURN hops, amounts, txns, hops_n, volume
+ORDER BY hops_n ASC, volume DESC
 LIMIT 5
 """
 
@@ -116,6 +119,57 @@ BLAST_RADIUS_FALLBACK = """
 MATCH (seed:Account {id: $id})-[:SENT*1..3]->(n:Account)
 RETURN DISTINCT n.id AS id, n.name AS name, n.kind AS kind, n.frozen AS frozen
 LIMIT 40
+"""
+
+FAN_IN = """
+MATCH (a:Account)<-[s:SENT]-()
+RETURN a.id, a.name, a.kind, count(s) AS inbound, sum(s.amount) AS volume, a.frozen
+ORDER BY volume DESC
+LIMIT $limit
+"""
+
+CASH_OUT = """
+MATCH (a:Account)-[p:PAID]->(m:Merchant)
+RETURN a.id, a.name, a.kind, p.id, p.amount, p.ts, m.id, m.name, m.risk
+ORDER BY p.amount DESC
+LIMIT 12
+"""
+
+SIMULATE_FREEZE = """
+MATCH (seed:Account {id: $id})
+OPTIONAL MATCH (seed)-[:SENT*1..4]->(n:Account)
+RETURN seed.id, seed.name, seed.kind, seed.frozen,
+       collect(DISTINCT {id: n.id, name: n.name, kind: n.kind, frozen: n.frozen})[0..30] AS downstream
+"""
+
+CRIME_ACCOUNTS = """
+MATCH (a:Account)
+WHERE a.kind IN ['victim', 'mule', 'collector', 'bridge']
+RETURN a.id, a.name, a.kind, a.risk, a.frozen, a.flagged
+"""
+
+CRIME_EDGES = """
+MATCH (a:Account)-[s:SENT]->(b:Account)
+WHERE a.kind IN ['victim', 'mule', 'collector', 'bridge']
+  AND b.kind IN ['victim', 'mule', 'collector', 'bridge']
+RETURN a.id, b.id, s.amount, s.id, s.channel, s.alert
+"""
+
+CRIME_DEVICES = """
+MATCH (a:Account)-[:USED_DEVICE]->(d:Device)
+WHERE a.kind IN ['victim', 'mule', 'collector', 'bridge']
+RETURN DISTINCT d.id, d.label, d.flagged, collect(a.id)
+"""
+
+REPLAY_STEPS = """
+MATCH (inv:Investigation {id: $id})-[:HAS_STEP]->(s:AgentStep)
+RETURN inv.id, inv.query, inv.ts, s.n, s.tool, s.reason, s.cypher, s.ts
+ORDER BY s.n ASC
+"""
+
+REPLAY_ACTIONS = """
+MATCH (inv:Investigation {id: $id})-[:TOOK]->(act:Action)-[:TARGET]->(t)
+RETURN act.id, act.kind, act.ts, act.reason, coalesce(t.id, t.addr)
 """
 
 SEARCH = """
@@ -203,6 +257,24 @@ UNWIND $ids AS aid
 UNWIND $ids AS bid
 MATCH (a:Account {id: aid})-[s:SENT]->(b:Account {id: bid})
 RETURN a.id, b.id, s.amount, s.id, s.channel
+"""
+
+SUBGRAPH_DEVICES = """
+UNWIND $ids AS aid
+MATCH (a:Account {id: aid})-[:USED_DEVICE]->(d:Device)
+RETURN DISTINCT d.id, d.label, d.flagged
+"""
+
+SUBGRAPH_DEVICE_EDGES = """
+UNWIND $ids AS aid
+MATCH (a:Account {id: aid})-[:USED_DEVICE]->(d:Device)
+RETURN a.id, d.id
+"""
+
+SUBGRAPH_PAY = """
+UNWIND $ids AS aid
+MATCH (a:Account {id: aid})-[p:PAID]->(m:Merchant)
+RETURN a.id, m.id, m.name, p.amount, p.id, m.risk
 """
 
 STATS = """

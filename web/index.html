@@ -10,19 +10,20 @@
   <link rel="stylesheet" href="/assets/styles.css" />
 </head>
 <body>
-  <div class="grain"></div>
+  <div class="grain" aria-hidden="true"></div>
   <header class="top">
     <div class="brand">
       <span class="mark">TW</span>
       <div>
         <p class="name">TRACEWIRE</p>
-        <p class="sub">Graph-native financial crime agent · FalkorDB</p>
+        <p class="sub">Graph-native financial crime agent · FalkorDB · Track 01</p>
       </div>
     </div>
     <div class="status">
       <span id="dot" class="dot"></span>
       <span id="status-label">graph offline</span>
       <span id="counts" class="counts"></span>
+      <button type="button" class="ghost" id="reseed">Reseed ledger</button>
     </div>
   </header>
 
@@ -33,27 +34,32 @@
       <p class="kicker">Ask the graph</p>
       <div class="prompts" id="prompts"></div>
       <form id="ask" class="ask">
+        <label class="sr" for="q">Investigation query</label>
         <textarea id="q" rows="3" placeholder="Investigate TXN-ALERT-1 — night wire into the mule device"></textarea>
         <label class="check">
           <input type="checkbox" id="act" checked />
-          Take graph actions (freeze / flag / case)
+          Write actions into FalkorDB (freeze / flag / case)
         </label>
         <button type="submit" id="go">Run investigation</button>
       </form>
+      <p class="kicker">Prior walks</p>
+      <div id="history" class="stack"></div>
     </aside>
 
     <section class="stage">
       <div class="verdict" id="verdict">
         <p class="idle-title">The ledger is live.</p>
-        <p class="idle-copy">TRACEWIRE does not guess. It walks SENT edges, ranks collectors with PageRank, finds mule crews with WCC and shared devices, then writes freezes back into FalkorDB. Pull the graph out and the product stops.</p>
+        <p class="idle-copy">TRACEWIRE does not guess. It walks <code>SENT</code> edges, ranks collectors with PageRank, finds mule crews with WCC and shared devices, simulates a freeze, then writes the freeze back into FalkorDB. Pull the graph out and the product stops.</p>
       </div>
+      <div class="actions-strip" id="actions-strip" hidden></div>
       <div class="canvas-wrap">
         <canvas id="graph"></canvas>
+        <div class="inspect" id="inspect" hidden></div>
         <div class="legend">
           <span><i class="swatch victim"></i>victim</span>
           <span><i class="swatch mule"></i>mule</span>
           <span><i class="swatch collector"></i>collector</span>
-          <span><i class="swatch legit"></i>legit</span>
+          <span><i class="swatch device"></i>device</span>
           <span><i class="swatch frozen"></i>frozen</span>
         </div>
       </div>
@@ -61,7 +67,7 @@
 
     <aside class="dossier" id="dossier">
       <p class="kicker">Dossier</p>
-      <p class="hint">Every line is a Cypher tool the agent selected. Nothing here is a chat hallucination.</p>
+      <p class="hint">Every line is a Cypher tool the agent selected. Steps persist as <code>(:Investigation)-[:HAS_STEP]->(:AgentStep)</code>.</p>
       <ol id="steps" class="steps"></ol>
     </aside>
   </main>
