@@ -158,7 +158,8 @@ RETURN a.id, b.id, s.amount, s.id, s.channel, s.alert
 CRIME_DEVICES = """
 MATCH (a:Account)-[:USED_DEVICE]->(d:Device)
 WHERE a.kind IN ['victim', 'mule', 'collector', 'bridge']
-RETURN DISTINCT d.id, d.label, d.flagged, collect(a.id)
+WITH d, collect(DISTINCT a.id) AS accounts
+RETURN d.id, d.label, d.flagged, accounts
 """
 
 REPLAY_STEPS = """

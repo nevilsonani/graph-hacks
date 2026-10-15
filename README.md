@@ -88,6 +88,8 @@ A fake-invoice victim (`V-03`) wires `$9,400` (`TXN-ALERT-1`) into `M-01`. That 
 | GET | `/api/health` | FalkorDB ping |
 | GET | `/api/overview` | alerts, counts, PageRank hubs |
 | POST | `/api/investigate` | `{ "query", "take_actions" }` |
+| POST | `/api/investigate/stream` | Same body, SSE: `start` / `step` / `done` |
+| GET | `/api/investigations/{id}` | Replay a walk stored in FalkorDB |
 | POST | `/api/reseed` | wipe and reload synthetic ledger |
 | GET | `/mcp/tools` | MCP-shaped tool list |
 | POST | `/api/tools/call` | run one graph tool |
