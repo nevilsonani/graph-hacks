@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TRACEWIRE — follow the money, freeze the ring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="grain"></div>
+  <header class="top">
+    <div class="brand">
+      <span class="mark">TW</span>
+      <div>
+        <p class="name">TRACEWIRE</p>
+        <p class="sub">Graph-native financial crime agent · FalkorDB</p>
+      </div>
+    </div>
+    <div class="status">
+      <span id="dot" class="dot"></span>
+      <span id="status-label">graph offline</span>
+      <span id="counts" class="counts"></span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <aside class="rail">
+      <p class="kicker">Open alerts</p>
+      <div id="alerts" class="stack"></div>
+      <p class="kicker">Ask the graph</p>
+      <div class="prompts" id="prompts"></div>
+      <form id="ask" class="ask">
+        <textarea id="q" rows="3" placeholder="Investigate TXN-ALERT-1 — night wire into the mule device"></textarea>
+        <label class="check">
+          <input type="checkbox" id="act" checked />
+          Take graph actions (freeze / flag / case)
+        </label>
+        <button type="submit" id="go">Run investigation</button>
+      </form>
+    </aside>
+
+    <section class="stage">
+      <div class="verdict" id="verdict">
+        <p class="idle-title">The ledger is live.</p>
+        <p class="idle-copy">TRACEWIRE does not guess. It walks SENT edges, ranks collectors with PageRank, finds mule crews with WCC and shared devices, then writes freezes back into FalkorDB. Pull the graph out and the product stops.</p>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="graph"></canvas>
+        <div class="legend">
+          <span><i class="swatch victim"></i>victim</span>
+          <span><i class="swatch mule"></i>mule</span>
+          <span><i class="swatch collector"></i>collector</span>
+          <span><i class="swatch legit"></i>legit</span>
+          <span><i class="swatch frozen"></i>frozen</span>
+        </div>
+      </div>
+    </section>
+
+    <aside class="dossier" id="dossier">
+      <p class="kicker">Dossier</p>
+      <p class="hint">Every line is a Cypher tool the agent selected. Nothing here is a chat hallucination.</p>
+      <ol id="steps" class="steps"></ol>
+    </aside>
+  </main>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
