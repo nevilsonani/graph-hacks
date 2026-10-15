@@ -8,6 +8,8 @@ TRACEWIRE is an investigation agent whose entire brain is a FalkorDB graph. It d
 
 Unplug FalkorDB and the product returns `503`. That is the point. [Hackathon rules](https://www.wemakedevs.org/hackathons/falkordb/rules) require the graph to do real work. [Track 01](https://www.wemakedevs.org/hackathons/falkordb) asks for multi-hop reasoning, graph algorithms as tools, MCP-style tool selection, actions from what the graph shows, and explainable results. TRACEWIRE is built against that list.
 
+It is not a chat UI with a graph drawing. Money is `SENT`. The crew is `USED_DEVICE`. PageRank / WCC / BFS are tools. A freeze is a `SET` in FalkorDB. That combination is the bet.
+
 ## Demo in 60 seconds
 
 1. Open http://localhost:8080  
@@ -40,7 +42,41 @@ $env:OPENAI_API_KEY="sk-..."
 docker compose up --build
 ```
 
-## Run (local Python)
+## Run without Docker (FalkorDB Cloud + local Python)
+
+The graph lives in [FalkorDB Cloud](https://app.falkordb.cloud). The TRACEWIRE UI still runs on your PC with Python. **ChatGPT’s free website does not plug in.** Leave `OPENAI_API_KEY` empty — the graph router is the real product.
+
+1. Sign up at [app.falkordb.cloud](https://app.falkordb.cloud) and create a **Free** instance. Wait until status is **Running**.
+2. Connectivity tab: copy **host** and **port** (port is often not 6379).
+3. Instance Details: user is usually `falkordb`. Copy the password.
+4. Free tier has **no TLS**. Paid TLS instances need `FALKOR_SSL=true`.
+5. In this repo, copy `.env.example` to `.env` and fill:
+
+```
+FALKOR_HOST=paste-host
+FALKOR_PORT=paste-port
+FALKOR_USERNAME=falkordb
+FALKOR_PASSWORD=paste-password
+FALKOR_SSL=false
+GRAPH_NAME=tracewire
+OPENAI_API_KEY=
+```
+
+6. PowerShell:
+
+```powershell
+cd "C:\Users\sonan\OneDrive\Desktop\Graph Hacks\graph-hacks\backend"
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8080
+```
+
+7. Open http://localhost:8080 — status must say **FalkorDB live**. Click **TXN-ALERT-1**.
+
+[Cloud connect docs](https://docs.falkordb.com/cloud/console/connect). Never commit `.env`.
+
+## Run (local Python + Docker FalkorDB)
 
 ```bash
 docker run -d --name falkordb -p 6379:6379 -p 3000:3000 falkordb/falkordb:latest
@@ -101,7 +137,7 @@ A fake-invoice victim (`V-03`) wires `$9,400` (`TXN-ALERT-1`) into `M-01`. That 
 - README + graph model: this file + `queries/GRAPH.md`  
 - Cypher: `backend/app/queries.py`  
 - AI disclosure: `DISCLOSURE.md`  
-- Demo video: record the TXN-ALERT-1 click path (you still have to film this)  
+- Demo video: read [`VIDEO-SCRIPT.md`](VIDEO-SCRIPT.md), then film TXN-ALERT-1  
 - Deploy: Docker local is complete; live host is optional
 
 ## Credentials you need

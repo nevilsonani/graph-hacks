@@ -13,7 +13,19 @@ def connect(retries: int = 30, delay: float = 1.0) -> FalkorDB:
     last_err: Exception | None = None
     for _ in range(retries):
         try:
-            client = FalkorDB(host=settings.falkor_host, port=settings.falkor_port)
+            kwargs = {
+                "host": settings.falkor_host,
+                "port": settings.falkor_port,
+                "ssl": settings.falkor_ssl,
+                "socket_timeout": 30,
+                "socket_connect_timeout": 15,
+                "health_check_interval": 15,
+            }
+            if settings.falkor_username:
+                kwargs["username"] = settings.falkor_username
+            if settings.falkor_password:
+                kwargs["password"] = settings.falkor_password
+            client = FalkorDB(**kwargs)
             conn = getattr(client, "connection", None)
             if conn is not None and hasattr(conn, "ping"):
                 conn.ping()
@@ -37,8 +49,21 @@ def graph():
     return client().select_graph(settings.graph_name)
 
 
+def reset():
+    global _client
+    _client = None
+
+
 def query(cypher: str, params: dict[str, Any] | None = None):
-    return graph().query(cypher, params or {})
+    try:
+        return graph().query(cypher, params or {})
+    except Exception as exc:  # noqa: BLE001
+        msg = str(exc).lower()
+        if "connection" in msg or "forcibly closed" in msg or "timeout" in msg:
+            reset()
+            time.sleep(1)
+            return graph().query(cypher, params or {})
+        raise
 
 
 def rows(cypher: str, params: dict[str, Any] | None = None) -> list[list[Any]]:
